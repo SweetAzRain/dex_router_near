@@ -25,26 +25,30 @@ export function useRoutes(request: RouteRequest | null, enabled: boolean = true)
               min_deadline_ms: 60000,
             });
             
-            // Convert NEAR Intents quotes to RouteInfo format
-            const intentsRoutes: RouteInfo[] = intentsQuotes.map(quote => ({
-              deadline: quote.expiration_time,
-              has_slippage: false,
-              estimated_amount: {
-                amount_out: quote.amount_out,
-              },
-              worst_case_amount: {
-                amount_out: quote.amount_out, // No slippage for intents
-              },
-              dex_id: 'NearIntents',
-              execution_instructions: [{
-                IntentsQuote: {
-                  message_to_sign: JSON.stringify(quote),
-                  quote_hash: quote.quote_hash,
-                }
-              }],
-              needs_unwrap: false,
-            }));
-            
+            // Только один лучший маршрут NearIntents
+            let intentsRoutes: RouteInfo[] = [];
+            if (intentsQuotes && intentsQuotes.length > 0) {
+              // Выбрать лучший quote (например, с максимальным amount_out)
+              const bestQuote = intentsQuotes.reduce((a, b) => (BigInt(a.amount_out) > BigInt(b.amount_out) ? a : b));
+              intentsRoutes = [{
+                deadline: bestQuote.expiration_time,
+                has_slippage: false,
+                estimated_amount: {
+                  amount_out: bestQuote.amount_out,
+                },
+                worst_case_amount: {
+                  amount_out: bestQuote.amount_out, // No slippage for intents
+                },
+                dex_id: 'NearIntents',
+                execution_instructions: [{
+                  IntentsQuote: {
+                    message_to_sign: JSON.stringify(bestQuote),
+                    quote_hash: bestQuote.quote_hash,
+                  }
+                }],
+                needs_unwrap: false,
+              }];
+            }
             return [...intearRoutes, ...intentsRoutes];
           } catch (intentsError) {
             console.warn('Failed to get NEAR Intents quotes:', intentsError);
