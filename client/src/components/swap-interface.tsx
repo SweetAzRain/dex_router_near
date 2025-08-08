@@ -260,6 +260,21 @@ export function SwapInterface() {
                   nonce = new Uint8Array(candidate);
                 } else if (typeof candidate === 'object' && Object.values(candidate).length === 32) {
                   nonce = new Uint8Array(Object.values(candidate));
+                } else if (typeof candidate === 'string') {
+                  // Если nonce — строка base64, декодируем
+                  try {
+                    if (typeof window !== 'undefined' && window.atob) {
+                      const bin = window.atob(candidate);
+                      const arr = new Uint8Array(32);
+                      for (let i = 0; i < 32; i++) arr[i] = bin.charCodeAt(i);
+                      nonce = arr;
+                    } else {
+                      // Node.js
+                      nonce = Uint8Array.from(Buffer.from(candidate, 'base64'));
+                    }
+                  } catch (e) {
+                    nonce = undefined;
+                  }
                 }
                 // Если после преобразования длина не 32 — не передавать nonce
                 if (nonce && nonce.length !== 32) nonce = undefined;
