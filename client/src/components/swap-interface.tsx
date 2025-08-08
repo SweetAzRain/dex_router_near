@@ -297,35 +297,31 @@ export function SwapInterface() {
       // Теперь NEAR тоже как nep141:wrap.near, поэтому всегда NEP-141 логика
       // 1. storage_deposit
       const storageDepositTx = {
-        receiverId: fromToken.id,
+        receiver_id: fromToken.id,
         actions: [
           {
             type: 'FunctionCall',
-            params: {
-              methodName: 'storage_deposit',
-              args: { account_id: quote.quote.depositAddress },
-              gas: '30000000000000',
-              deposit: '1250000000000000000000', // 0.00125 NEAR
-            }
+            method_name: 'storage_deposit',
+            args: JSON.stringify({ account_id: quote.quote.depositAddress }),
+            gas: '30000000000000',
+            deposit: '1250000000000000000000', // 0.00125 NEAR
           }
         ]
       };
       // 2. ft_transfer_call
       const ftTransferCallTx = {
-        receiverId: fromToken.id,
+        receiver_id: fromToken.id,
         actions: [
           {
             type: 'FunctionCall',
-            params: {
-              methodName: 'ft_transfer_call',
-              args: {
-                receiver_id: quote.quote.depositAddress,
-                amount,
-                msg: ''
-              },
-              gas: '90000000000000',
-              deposit: '1',
-            }
+            method_name: 'ft_transfer_call',
+            args: JSON.stringify({
+              receiver_id: quote.quote.depositAddress,
+              amount,
+              msg: ''
+            }),
+            gas: '90000000000000',
+            deposit: '1',
           }
         ]
       };
