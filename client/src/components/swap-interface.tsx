@@ -186,8 +186,141 @@ export function SwapInterface() {
       return;
     }
     
-    // ИСПРАВЛЕНО: Явные типы для параметров
-    const selectedRoute = routesData.find((route: RouteInfo) => route.dex_id === selectedRouteId) || intearAPI.getBestRoute(routesData);
+    // Always fetch a fresh route for NearIntents before signing/publishing
+    let selectedRoute: RouteInfo | null = null;
+    if (selectedRouteId === 'NearIntents') {
+      // Получаем свежую квоту напрямую через nearIntents.getQuotes
+      try {
+        const defuseIn = nearIntents.convertToDefuseAsset(fromToken.id);
+        const defuseOut = nearIntents.convertToDefuseAsset(toToken.id);
+        const amountInParsed = intearAPI.parseAmount(amountIn, fromToken.decimals);
+        const slippage = slippageType === "Fixed" ? parseFloat(selectedSlippage) / 100 : 0.01;
+        const quotes = await nearIntents.getQuotes({
+          defuse_asset_identifier_in: defuseIn,
+          defuse_asset_identifier_out: defuseOut,
+          amount_in: amountInParsed,
+          slippage,
+          trader_account_id: wallet.accountId || undefined,
+        });
+        if (!Array.isArray(quotes) || quotes.length === 0) {
+          toast({
+            title: "No fresh NearIntents quote",
+            description: "Could not fetch a valid NearIntents quote. Try again.",
+            variant: "destructive",
+          });
+          setIsSwapping(false);
+          return;
+        }
+        // Берём первую квоту
+        const quote = quotes[0];
+        // message_to_sign и quote_hash из ответа
+        const messageToSign = quote.message_to_sign || quote.message;
+        const quoteHash = quote.quote_hash;
+        if (!messageToSign || !quoteHash) {
+          toast({
+            title: "Invalid NearIntents quote",
+            description: "Quote missing message_to_sign or quote_hash.",
+            variant: "destructive",
+          });
+          setIsSwapping(false);
+          return;
+        }
+        // Подписываем и публикуем интент
+        if (!signMessage) {
+          throw new Error('Sign message functionality is not available.');
+        }
+        let messageToSignData: any;
+        try {
+          messageToSignData = typeof messageToSign === 'string' ? JSON.parse(messageToSign) : messageToSign;
+        } catch (parseError) {
+          messageToSignData = messageToSign;
+        }
+        let nonce: Uint8Array | undefined = undefined;
+        if (messageToSignData.nonce) {
+          let candidate: any = messageToSignData.nonce;
+          if (candidate instanceof Uint8Array && candidate.length === 32) {
+            nonce = candidate;
+          } else if (Array.isArray(candidate) && candidate.length === 32) {
+            nonce = new Uint8Array(candidate);
+          } else if (typeof candidate === 'object' && Object.values(candidate).length === 32) {
+            nonce = new Uint8Array(Object.values(candidate));
+          } else if (typeof candidate === 'string') {
+            try {
+              if (typeof window !== 'undefined' && window.atob) {
+                const bin = window.atob(candidate);
+                const arr = new Uint8Array(32);
+                for (let i = 0; i < 32; i++) arr[i] = bin.charCodeAt(i);
+                nonce = arr;
+              } else {
+                nonce = Uint8Array.from(Buffer.from(candidate, 'base64'));
+              }
+            } catch (e) {
+              nonce = undefined;
+            }
+          }
+          if (nonce && nonce.length !== 32) nonce = undefined;
+        }
+        if (!nonce) {
+          nonce = new Uint8Array(32);
+          if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+            window.crypto.getRandomValues(nonce);
+          } else {
+            try {
+              const nodeCrypto = require('crypto');
+              const buf = nodeCrypto.randomBytes(32);
+              nonce.set(buf);
+            } catch (e) {}
+          }
+        }
+        if (typeof Buffer !== 'undefined' && !(nonce instanceof Buffer)) {
+          nonce = Buffer.from(nonce);
+        }
+        const signedMessage = await signMessage({
+          message: JSON.stringify(messageToSignData),
+          recipient: messageToSignData.recipient || 'intents.near',
+          nonce
+        });
+        const publication: IntentPublication = {
+          quote_hashes: [quoteHash],
+          signed_data: {
+            standard: (signedMessage as any).signatureType || 'nep413',
+            payload: (signedMessage as any).payload || signedMessage,
+            signature: (signedMessage as any).signature,
+            public_key: (signedMessage as any).publicKey || (signedMessage as any).public_key,
+          }
+        };
+        const publishResult = await nearIntents.publishIntent(publication);
+        if (publishResult.intent_hash) {
+          toast({
+            title: "Intent submitted",
+            description: `Your swap intent has been sent to the solver. Intent hash: ${publishResult.intent_hash.substring(0, 8)}...`,
+          });
+        } else {
+          toast({
+            title: "Intent failed",
+            description: (publishResult as any).reason || "Intent was not accepted by solver relay",
+            variant: "destructive",
+          });
+          throw new Error((publishResult as any).reason || "Intent was not accepted by solver relay");
+        }
+        // После успешного свапа
+        setAmountIn("");
+        setAmountOut("");
+        setSelectedRouteId(null);
+        setIsSwapping(false);
+        return;
+      } catch (e: any) {
+        toast({
+          title: "Failed to swap via NearIntents",
+          description: e.message || e.toString(),
+          variant: "destructive",
+        });
+        setIsSwapping(false);
+        return;
+      }
+    } else {
+      selectedRoute = routesData.find((route: RouteInfo) => route.dex_id === selectedRouteId) || intearAPI.getBestRoute(routesData);
+    }
     if (!selectedRoute) {
       toast({
         title: "No route selected",
@@ -222,138 +355,6 @@ export function SwapInterface() {
           console.log('Sending transaction with params:', txParams);
           const result = await signTransaction(txParams);
           console.log('Transaction result:', result);
-
-        } else if (instruction.IntentsQuote) {
-          try {
-            if (!signMessage) {
-               throw new Error('Sign message functionality is not available.');
-            }
-            
-            // Анализируем message_to_sign из API
-            let messageToSignData: any;
-            try {
-              messageToSignData = JSON.parse(instruction.IntentsQuote.message_to_sign);
-            } catch (parseError) {
-              console.error("Failed to parse message_to_sign as JSON:", instruction.IntentsQuote.message_to_sign);
-              messageToSignData = instruction.IntentsQuote.message_to_sign;
-            }
-            
-            console.log("Near Intents message to sign ", messageToSignData);
-
-            // Подписываем сообщение
-            let signedMessage: any;
-            // Логируем структуру messageToSignData
-            console.log('IntentsQuote message_to_sign:', messageToSignData);
-            // Проверяем, что это валидный intent для подписи
-            if (
-              typeof messageToSignData === 'object' &&
-              messageToSignData.signer_id &&
-              messageToSignData.deadline &&
-              messageToSignData.intents
-            ) {
-              let nonce: Uint8Array | undefined = undefined;
-              if (messageToSignData.nonce) {
-                let candidate: any = messageToSignData.nonce;
-                if (candidate instanceof Uint8Array && candidate.length === 32) {
-                  nonce = candidate;
-                } else if (Array.isArray(candidate) && candidate.length === 32) {
-                  nonce = new Uint8Array(candidate);
-                } else if (typeof candidate === 'object' && Object.values(candidate).length === 32) {
-                  nonce = new Uint8Array(Object.values(candidate));
-                } else if (typeof candidate === 'string') {
-                  // Если nonce — строка base64, декодируем
-                  try {
-                    if (typeof window !== 'undefined' && window.atob) {
-                      const bin = window.atob(candidate);
-                      const arr = new Uint8Array(32);
-                      for (let i = 0; i < 32; i++) arr[i] = bin.charCodeAt(i);
-                      nonce = arr;
-                    } else {
-                      // Node.js
-                      nonce = Uint8Array.from(Buffer.from(candidate, 'base64'));
-                    }
-                  } catch (e) {
-                    nonce = undefined;
-                  }
-                }
-                if (nonce && nonce.length !== 32) nonce = undefined;
-              }
-              if (!nonce) {
-                nonce = new Uint8Array(32);
-                if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
-                  window.crypto.getRandomValues(nonce);
-                } else {
-                  try {
-                    const nodeCrypto = require('crypto');
-                    const buf = nodeCrypto.randomBytes(32);
-                    nonce.set(buf);
-                  } catch (e) {}
-                }
-              }
-              // Приведение к Buffer для injected/injected-like кошельков
-              if (typeof Buffer !== 'undefined' && !(nonce instanceof Buffer)) {
-                nonce = Buffer.from(nonce);
-              }
-              // Логируем nonce
-              console.log('nonce for signMessage', nonce, typeof nonce, nonce?.length, Buffer.from(nonce).toString('base64'));
-              signedMessage = await signMessage({
-                message: JSON.stringify(messageToSignData),
-                recipient: messageToSignData.recipient || 'intents.near',
-                nonce
-              });
-            } else {
-              // Не валидный intent для подписи
-              console.error('IntentsQuote не содержит валидный intent для подписи:', messageToSignData);
-              toast({
-                title: "IntentsQuote error",
-                description: "IntentsQuote не содержит валидный intent для подписи",
-                variant: "destructive",
-              });
-              throw new Error("IntentsQuote не содержит валидный intent для подписи");
-            }
-            
-            console.log("Near Intents signed message result:", signedMessage);
-
-            // Подготавливаем данные для публикации
-            const publication: IntentPublication = {
-              quote_hashes: [instruction.IntentsQuote.quote_hash],
-              signed_data: {
-                standard: (signedMessage as any).signatureType || 'nep413',
-                payload: (signedMessage as any).payload || signedMessage,
-                signature: (signedMessage as any).signature,
-                public_key: (signedMessage as any).publicKey || (signedMessage as any).public_key,
-              }
-            };
-
-            console.log("Near Intents publication ", publication);
-
-            // Публикуем интент через наш сервис
-            const publishResult = await nearIntents.publishIntent(publication);
-            console.log('Near Intents published:', publishResult);
-
-            if (publishResult.intent_hash) {
-              toast({
-                title: "Intent submitted",
-                description: `Your swap intent has been sent to the solver. Intent hash: ${publishResult.intent_hash.substring(0, 8)}...`,
-              });
-            } else {
-              toast({
-                title: "Intent failed",
-                description: (publishResult as any).reason || "Intent was not accepted by solver relay",
-                variant: "destructive",
-              });
-              throw new Error((publishResult as any).reason || "Intent was not accepted by solver relay");
-            }
-
-          } catch (error: any) {
-            console.error('Near Intents swap failed:', error);
-            toast({
-              title: "Near Intents swap failed",
-              description: error.message || error.toString() || "An unexpected error occurred",
-              variant: "destructive",
-            });
-            throw error;
-          }
         }
       }
 
