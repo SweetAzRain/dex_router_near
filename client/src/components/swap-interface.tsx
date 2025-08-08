@@ -15,6 +15,11 @@ import { TokenInfo } from "@/types/near";
 import { RouteInfo } from "@/types/near";
 import { intearAPI } from "@/services/intear-api";
 import { nearIntents } from "@/services/near-intents";
+import { OneClickService, OpenAPI, QuoteRequest } from "@defuse-protocol/one-click-sdk-typescript";
+// Use enums from QuoteRequest namespace for type safety
+// Инициализация 1click SDK (можно вынести в отдельный модуль)
+OpenAPI.BASE = "https://1click.chaindefuser.com";
+// OpenAPI.TOKEN = ""; // Если потребуется авторизация, добавить сюда
 import { useToast } from "@/hooks/use-toast";
 
 // Типы для Near Intents
@@ -100,8 +105,69 @@ export function SwapInterface() {
     }
   }, [routeRequest]);
 
-  // ИСПРАВЛЕНО: Правильная деструктуризация результата useRoutes
-  const { data: routesData, isLoading: routesLoading, error: routesError } = useRoutes(routeRequest, !!amountIn);
+
+  // --- Новый useEffect для dry-котировки через 1click (NearIntents) ---
+  const [intentsQuote, setIntentsQuote] = useState<any>(null);
+  const [intentsQuoteLoading, setIntentsQuoteLoading] = useState(false);
+  const [intentsQuoteError, setIntentsQuoteError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+    async function fetchIntentsQuote() {
+      setIntentsQuote(null);
+      setIntentsQuoteError(null);
+      if (!amountIn || !fromToken || !toToken) return;
+      setIntentsQuoteLoading(true);
+      try {
+        const originAsset = fromToken.id === 'wrap.near' ? 'native:near' : `nep141:${fromToken.id}`;
+        const destinationAsset = toToken.id === 'wrap.near' ? 'native:near' : `nep141:${toToken.id}`;
+        const amount = intearAPI.parseAmount(amountIn, fromToken.decimals).toString();
+        const slippageTolerance = slippageType === 'Fixed' ? Math.round(parseFloat(selectedSlippage) * 100) : 100; // 1.0% = 100
+        const quoteRequest: QuoteRequest = {
+          dry: true,
+          swapType: QuoteRequest.swapType.EXACT_INPUT,
+          slippageTolerance,
+          originAsset,
+          depositType: QuoteRequest.depositType.ORIGIN_CHAIN,
+          destinationAsset,
+          amount,
+          refundTo: wallet.accountId || '',
+          refundType: QuoteRequest.refundType.ORIGIN_CHAIN,
+          recipient: wallet.accountId || '',
+          recipientType: QuoteRequest.recipientType.DESTINATION_CHAIN,
+          deadline: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+          referral: '',
+          quoteWaitingTimeMs: 2000,
+          appFees: [],
+        };
+        const quote = await OneClickService.getQuote(quoteRequest);
+        if (!ignore) setIntentsQuote(quote);
+      } catch (e: any) {
+        if (!ignore) setIntentsQuoteError(e.message || e.toString());
+      } finally {
+        if (!ignore) setIntentsQuoteLoading(false);
+      }
+    }
+    fetchIntentsQuote();
+    return () => { ignore = true; };
+    // eslint-disable-next-line
+  }, [amountIn, fromToken, toToken, slippageType, selectedSlippage, wallet.accountId]);
+
+  // --- Миксуем обычные маршруты и dry-котировку от 1click ---
+  const { data: routesDataRaw, isLoading: routesLoading, error: routesError } = useRoutes(routeRequest, !!amountIn);
+  let routesData = routesDataRaw;
+  if (intentsQuote && intentsQuote.quote && intentsQuote.quote.amountOut) {
+    const route: RouteInfo = {
+      dex_id: 'NearIntents',
+      estimated_amount: { amount_out: intentsQuote.quote.amountOut },
+      has_slippage: true,
+      execution_instructions: [],
+      deadline: intentsQuote.quote.deadline,
+      worst_case_amount: { amount_out: intentsQuote.quote.amountOut },
+      needs_unwrap: false,
+    };
+    routesData = [route, ...(Array.isArray(routesDataRaw) ? routesDataRaw.filter((r: RouteInfo) => r.dex_id !== 'NearIntents') : [])];
+  }
 
   useEffect(() => {
     console.log('Routes loading:', routesLoading);
@@ -186,124 +252,105 @@ export function SwapInterface() {
       return;
     }
     
-    // Always fetch a fresh route for NearIntents before signing/publishing
+    // --- Новый способ: NearIntents через 1click API ---
     let selectedRoute: RouteInfo | null = null;
     if (selectedRouteId === 'NearIntents') {
-      // Получаем свежую квоту напрямую через nearIntents.getQuotes
       try {
-        const defuseIn = nearIntents.convertToDefuseAsset(fromToken.id);
-        const defuseOut = nearIntents.convertToDefuseAsset(toToken.id);
-        const amountInParsed = intearAPI.parseAmount(amountIn, fromToken.decimals);
-        const slippage = slippageType === "Fixed" ? parseFloat(selectedSlippage) / 100 : 0.01;
-        const quotes = await nearIntents.getQuotes({
-          defuse_asset_identifier_in: defuseIn,
-          defuse_asset_identifier_out: defuseOut,
-          amount_in: String(amountInParsed),
-          slippage,
-          trader_account_id: wallet.accountId || undefined,
-        });
-        if (!Array.isArray(quotes) || quotes.length === 0) {
-          toast({
-            title: "No fresh NearIntents quote",
-            description: "Could not fetch a valid NearIntents quote. Try again.",
-            variant: "destructive",
-          });
-          setIsSwapping(false);
-          return;
-        }
-        // Берём первую квоту
-        const quote = quotes[0];
-        // message_to_sign и quote_hash из ответа
-        const messageToSign = quote.message_to_sign || quote.message;
-        const quoteHash = quote.quote_hash;
-        if (!messageToSign || !quoteHash) {
-          toast({
-            title: "Invalid NearIntents quote",
-            description: "Quote missing message_to_sign or quote_hash.",
-            variant: "destructive",
-          });
-          setIsSwapping(false);
-          return;
-        }
-        // Подписываем и публикуем интент
-        if (!signMessage) {
-          throw new Error('Sign message functionality is not available.');
-        }
-        let messageToSignData: any;
-        try {
-          messageToSignData = typeof messageToSign === 'string' ? JSON.parse(messageToSign) : messageToSign;
-        } catch (parseError) {
-          messageToSignData = messageToSign;
-        }
-        let nonce: Uint8Array | undefined = undefined;
-        if (messageToSignData.nonce) {
-          let candidate: any = messageToSignData.nonce;
-          if (candidate instanceof Uint8Array && candidate.length === 32) {
-            nonce = candidate;
-          } else if (Array.isArray(candidate) && candidate.length === 32) {
-            nonce = new Uint8Array(candidate);
-          } else if (typeof candidate === 'object' && Object.values(candidate).length === 32) {
-            nonce = new Uint8Array(Object.values(candidate));
-          } else if (typeof candidate === 'string') {
-            try {
-              if (typeof window !== 'undefined' && window.atob) {
-                const bin = window.atob(candidate);
-                const arr = new Uint8Array(32);
-                for (let i = 0; i < 32; i++) arr[i] = bin.charCodeAt(i);
-                nonce = arr;
-              } else {
-                nonce = Uint8Array.from(Buffer.from(candidate, 'base64'));
-              }
-            } catch (e) {
-              nonce = undefined;
-            }
-          }
-          if (nonce && nonce.length !== 32) nonce = undefined;
-        }
-        if (!nonce) {
-          nonce = new Uint8Array(32);
-          if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
-            window.crypto.getRandomValues(nonce);
-          } else {
-            try {
-              const nodeCrypto = require('crypto');
-              const buf = nodeCrypto.randomBytes(32);
-              nonce.set(buf);
-            } catch (e) {}
-          }
-        }
-        if (typeof Buffer !== 'undefined' && !(nonce instanceof Buffer)) {
-          nonce = Buffer.from(nonce);
-        }
-        const signedMessage = await signMessage({
-          message: JSON.stringify(messageToSignData),
-          recipient: messageToSignData.recipient || 'intents.near',
-          nonce
-        });
-        const publication: IntentPublication = {
-          quote_hashes: [quoteHash],
-          signed_data: {
-            standard: (signedMessage as any).signatureType || 'nep413',
-            payload: (signedMessage as any).payload || signedMessage,
-            signature: (signedMessage as any).signature,
-            public_key: (signedMessage as any).publicKey || (signedMessage as any).public_key,
-          }
+        const originAsset = fromToken.id === 'wrap.near' ? 'native:near' : `nep141:${fromToken.id}`;
+        const destinationAsset = toToken.id === 'wrap.near' ? 'native:near' : `nep141:${toToken.id}`;
+        const amount = intearAPI.parseAmount(amountIn, fromToken.decimals).toString();
+        const slippageTolerance = slippageType === 'Fixed' ? Math.round(parseFloat(selectedSlippage) * 100) : 100;
+        const quoteRequest: QuoteRequest = {
+          dry: false,
+          swapType: QuoteRequest.swapType.EXACT_INPUT,
+          slippageTolerance,
+          originAsset,
+          depositType: QuoteRequest.depositType.ORIGIN_CHAIN,
+          destinationAsset,
+          amount,
+          refundTo: wallet.accountId || '',
+          refundType: QuoteRequest.refundType.ORIGIN_CHAIN,
+          recipient: wallet.accountId || '',
+          recipientType: QuoteRequest.recipientType.DESTINATION_CHAIN,
+          deadline: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+          referral: '',
+          quoteWaitingTimeMs: 2000,
+          appFees: [],
         };
-        const publishResult = await nearIntents.publishIntent(publication);
-        if (publishResult.intent_hash) {
+        const quote = await OneClickService.getQuote(quoteRequest);
+        if (!quote.quote || !quote.quote.depositAddress) {
           toast({
-            title: "Intent submitted",
-            description: `Your swap intent has been sent to the solver. Intent hash: ${publishResult.intent_hash.substring(0, 8)}...`,
+            title: "No deposit address",
+            description: "Could not get deposit address from 1click API.",
+            variant: "destructive",
+          });
+          setIsSwapping(false);
+          return;
+        }
+        // Для NEP-141 токенов нужно storage_deposit, если это не native:near
+        const isNative = fromToken.id === 'wrap.near';
+        // Для NEAR: обычный sendMoney, для NEP-141: storage_deposit + ft_transfer_call
+        if (isNative) {
+          // Отправка NEAR через signTransaction
+          const txParams = {
+            receiverId: quote.quote.depositAddress,
+            actions: [
+              {
+                type: 'Transfer',
+                params: {
+                  deposit: amount
+                }
+              }
+            ]
+          };
+          const result = await signTransaction(txParams);
+          toast({
+            title: "Swap submitted",
+            description: `Sent ${amountIn} NEAR to deposit address.`,
           });
         } else {
+          // Для NEP-141: storage_deposit (если нужно) + ft_transfer_call
+          // 1. storage_deposit
+          const storageDepositTx = {
+            receiverId: fromToken.id,
+            actions: [
+              {
+                type: 'FunctionCall',
+                params: {
+                  methodName: 'storage_deposit',
+                  args: { account_id: quote.quote.depositAddress },
+                  gas: '30000000000000',
+                  deposit: '1250000000000000000000', // 0.00125 NEAR
+                }
+              }
+            ]
+          };
+          // 2. ft_transfer_call
+          const ftTransferCallTx = {
+            receiverId: fromToken.id,
+            actions: [
+              {
+                type: 'FunctionCall',
+                params: {
+                  methodName: 'ft_transfer_call',
+                  args: {
+                    receiver_id: quote.quote.depositAddress,
+                    amount,
+                    msg: ''
+                  },
+                  gas: '90000000000000',
+                  deposit: '1',
+                }
+              }
+            ]
+          };
+          // Отправляем обе транзакции (storage_deposit и ft_transfer_call) в одном батче
+          const result = await signTransaction([storageDepositTx, ftTransferCallTx]);
           toast({
-            title: "Intent failed",
-            description: (publishResult as any).reason || "Intent was not accepted by solver relay",
-            variant: "destructive",
+            title: "Swap submitted",
+            description: `Sent ${amountIn} ${fromToken.symbol} to deposit address via ft_transfer_call.`,
           });
-          throw new Error((publishResult as any).reason || "Intent was not accepted by solver relay");
         }
-        // После успешного свапа
         setAmountIn("");
         setAmountOut("");
         setSelectedRouteId(null);
