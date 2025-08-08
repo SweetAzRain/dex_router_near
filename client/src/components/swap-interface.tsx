@@ -57,6 +57,16 @@ const DEFAULT_TOKENS: TokenInfo[] = [
     usdValue: "0.00",
   },
   {
+    id: "token.rhealab.near",
+    symbol: "RHEA",
+    name: "RHEA",
+    decimals: 18,
+    contractId: "token.rhealab.near",
+    isNative: false,
+    balance: "0",
+    usdValue: "0.00",
+  },
+  {
     id: "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
     symbol: "USDC",
     name: "USD Coin",
