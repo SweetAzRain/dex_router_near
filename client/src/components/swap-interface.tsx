@@ -198,7 +198,7 @@ export function SwapInterface() {
         const quotes = await nearIntents.getQuotes({
           defuse_asset_identifier_in: defuseIn,
           defuse_asset_identifier_out: defuseOut,
-          amount_in: amountInParsed,
+          amount_in: String(amountInParsed),
           slippage,
           trader_account_id: wallet.accountId || undefined,
         });

@@ -149,7 +149,7 @@ export class NearIntentsService {
   // --- КОНЕЦ НОВОГО метода publishIntent ---
 
   convertToDefuseAsset(tokenId: string): string {
-    if (tokenId === 'near') {
+    if (tokenId === 'near' || tokenId === 'wrap.near') {
       return 'native:near';
     }
     return `nep141:${tokenId}`;
