@@ -293,6 +293,10 @@ export function SwapInterface() {
                   } catch (e) {}
                 }
               }
+              // Приведение к Buffer для injected/injected-like кошельков
+              if (typeof Buffer !== 'undefined' && !(nonce instanceof Buffer)) {
+                nonce = Buffer.from(nonce);
+              }
               // Логируем nonce
               console.log('nonce for signMessage', nonce, typeof nonce, nonce?.length, Buffer.from(nonce).toString('base64'));
               signedMessage = await signMessage({
