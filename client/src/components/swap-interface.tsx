@@ -302,9 +302,7 @@ export function SwapInterface() {
           setIsSwapping(false);
           return;
         }
-        // Для NEP-141 токенов нужно storage_deposit, если это не native:near
-        // Теперь NEAR тоже как nep141:wrap.near, поэтому всегда NEP-141 логика
-        // 1. storage_deposit
+        // Сначала storage_deposit отдельной транзакцией
         const storageDepositTx = {
           receiverId: fromToken.id,
           actions: [
@@ -319,7 +317,8 @@ export function SwapInterface() {
             }
           ]
         };
-        // 2. ft_transfer_call
+        await signTransaction(storageDepositTx);
+        // Затем ft_transfer_call отдельной транзакцией
         const ftTransferCallTx = {
           receiverId: fromToken.id,
           actions: [
@@ -338,8 +337,7 @@ export function SwapInterface() {
             }
           ]
         };
-        // Отправляем обе транзакции (storage_deposit и ft_transfer_call) в одном батче
-        const result = await signTransaction([storageDepositTx, ftTransferCallTx]);
+        await signTransaction(ftTransferCallTx);
         toast({
           title: "Swap submitted",
           description: `Sent ${amountIn} ${fromToken.symbol} to deposit address via ft_transfer_call.`,
