@@ -20,9 +20,7 @@ import { OneClickService, OpenAPI, QuoteRequest } from "@defuse-protocol/one-cli
 // Инициализация 1click SDK (можно вынести в отдельный модуль)
 OpenAPI.BASE = "https://1click.chaindefuser.com";
 // OpenAPI.TOKEN is set from environment variable for Cloudflare Pages
-if (typeof process !== 'undefined' && process.env && process.env.ONECLICK_API_TOKEN) {
-  OpenAPI.TOKEN = process.env.ONECLICK_API_TOKEN;
-}
+OpenAPI.TOKEN = import.meta.env.VITE_ONECLICK_API_TOKEN;
 import { useToast } from "@/hooks/use-toast";
 
 // Типы для Near Intents
