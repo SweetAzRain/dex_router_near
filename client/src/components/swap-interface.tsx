@@ -243,6 +243,7 @@ export function SwapInterface() {
     setSelectedRouteId(dexId);
   };
 
+  // Новый executeSwap: только 1click SDK, только обычный NEP-141 трансфер на depositAddress из квоты
   const executeSwap = async () => {
     if (!wallet.isConnected || !wallet.accountId) {
       toast({
@@ -252,164 +253,95 @@ export function SwapInterface() {
       });
       return;
     }
-    if (!routesData || routesData.length === 0) {
-      toast({
-        title: "No routes available",
-        description: "Please try adjusting your swap parameters",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    // --- Новый способ: NearIntents через 1click API ---
-    let selectedRoute: RouteInfo | null = null;
-    if (selectedRouteId === 'NearIntents') {
-      try {
-        // Всегда используем nep141:wrap.near для NEAR
-        const originAsset = fromToken.id === 'wrap.near' ? 'nep141:wrap.near' : `nep141:${fromToken.id}`;
-        const destinationAsset = toToken.id === 'wrap.near' ? 'nep141:wrap.near' : `nep141:${toToken.id}`;
-        const amount = intearAPI.parseAmount(amountIn, fromToken.decimals).toString();
-        const slippageTolerance = slippageType === 'Fixed' ? Math.round(parseFloat(selectedSlippage) * 100) : 100;
-        const quoteRequest: QuoteRequest = {
-          dry: false,
-          swapType: QuoteRequest.swapType.EXACT_INPUT,
-          slippageTolerance,
-          originAsset,
-          depositType: QuoteRequest.depositType.ORIGIN_CHAIN,
-          destinationAsset,
-          amount,
-          refundTo: wallet.accountId || '',
-          refundType: QuoteRequest.refundType.ORIGIN_CHAIN,
-          recipient: wallet.accountId || '',
-          recipientType: QuoteRequest.recipientType.DESTINATION_CHAIN,
-          deadline: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-          referral: 'miquel',
-          quoteWaitingTimeMs: 2000,
-          appFees: [
-            {
-              recipient: wallet.accountId || '',
-              fee: 0
-            }
-          ],
-        };
-        const quote = await OneClickService.getQuote(quoteRequest);
-        if (!quote.quote || !quote.quote.depositAddress) {
-          toast({
-            title: "No deposit address",
-            description: "Could not get deposit address from 1click API.",
-            variant: "destructive",
-          });
-          setIsSwapping(false);
-          return;
-        }
-        // Для NEP-141 токенов нужно storage_deposit, если это не native:near
-        // Теперь NEAR тоже как nep141:wrap.near, поэтому всегда NEP-141 логика
-        // 1. storage_deposit
-        const storageDepositTx = {
-          receiverId: fromToken.id,
-          actions: [
-            {
-              type: 'FunctionCall',
-              params: {
-                methodName: 'storage_deposit',
-                args: { account_id: quote.quote.depositAddress },
-                gas: '30000000000000',
-                deposit: '1250000000000000000000', // 0.00125 NEAR
-              }
-            }
-          ]
-        };
-        // 2. ft_transfer_call
-        const ftTransferCallTx = {
-          receiverId: fromToken.id,
-          actions: [
-            {
-              type: 'FunctionCall',
-              params: {
-                methodName: 'ft_transfer_call',
-                args: {
-                  receiver_id: quote.quote.depositAddress,
-                  amount,
-                  msg: ''
-                },
-                gas: '90000000000000',
-                deposit: '1',
-              }
-            }
-          ]
-        };
-        // Отправляем обе транзакции (storage_deposit и ft_transfer_call) в одном батче
-        const result = await signTransaction([storageDepositTx, ftTransferCallTx]);
+    setIsSwapping(true);
+    try {
+      // Получаем свежую квоту с dry: false
+      // Всегда используем nep141:wrap.near для NEAR
+      const originAsset = fromToken.id === 'wrap.near' ? 'nep141:wrap.near' : `nep141:${fromToken.id}`;
+      const destinationAsset = toToken.id === 'wrap.near' ? 'nep141:wrap.near' : `nep141:${toToken.id}`;
+      const amount = intearAPI.parseAmount(amountIn, fromToken.decimals).toString();
+      const slippageTolerance = slippageType === 'Fixed' ? Math.round(parseFloat(selectedSlippage) * 100) : 100;
+      const quoteRequest: QuoteRequest = {
+        dry: false,
+        swapType: QuoteRequest.swapType.EXACT_INPUT,
+        slippageTolerance,
+        originAsset,
+        depositType: QuoteRequest.depositType.ORIGIN_CHAIN,
+        destinationAsset,
+        amount,
+        refundTo: wallet.accountId || '',
+        refundType: QuoteRequest.refundType.ORIGIN_CHAIN,
+        recipient: wallet.accountId || '',
+        recipientType: QuoteRequest.recipientType.DESTINATION_CHAIN,
+        deadline: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        referral: 'miquel',
+        quoteWaitingTimeMs: 2000,
+        appFees: [
+          {
+            recipient: wallet.accountId || '',
+            fee: 0
+          }
+        ],
+      };
+      const quote = await OneClickService.getQuote(quoteRequest);
+      if (!quote.quote || !quote.quote.depositAddress) {
         toast({
-          title: "Swap submitted",
-          description: `Sent ${amountIn} ${fromToken.symbol} to deposit address via ft_transfer_call.`,
-        });
-        setAmountIn("");
-        setAmountOut("");
-        setSelectedRouteId(null);
-        setIsSwapping(false);
-        return;
-      } catch (e: any) {
-        toast({
-          title: "Failed to swap via NearIntents",
-          description: e.message || e.toString(),
+          title: "No deposit address",
+          description: "Could not get deposit address from 1click API.",
           variant: "destructive",
         });
         setIsSwapping(false);
         return;
       }
-    } else {
-      selectedRoute = routesData.find((route: RouteInfo) => route.dex_id === selectedRouteId) || intearAPI.getBestRoute(routesData);
-    }
-    if (!selectedRoute) {
+      // Для NEP-141 токенов нужно storage_deposit, если это не native:near
+      // Теперь NEAR тоже как nep141:wrap.near, поэтому всегда NEP-141 логика
+      // 1. storage_deposit
+      const storageDepositTx = {
+        receiverId: fromToken.id,
+        actions: [
+          {
+            type: 'FunctionCall',
+            params: {
+              methodName: 'storage_deposit',
+              args: { account_id: quote.quote.depositAddress },
+              gas: '30000000000000',
+              deposit: '1250000000000000000000', // 0.00125 NEAR
+            }
+          }
+        ]
+      };
+      // 2. ft_transfer_call
+      const ftTransferCallTx = {
+        receiverId: fromToken.id,
+        actions: [
+          {
+            type: 'FunctionCall',
+            params: {
+              methodName: 'ft_transfer_call',
+              args: {
+                receiver_id: quote.quote.depositAddress,
+                amount,
+                msg: ''
+              },
+              gas: '90000000000000',
+              deposit: '1',
+            }
+          }
+        ]
+      };
+      // Отправляем обе транзакции (storage_deposit и ft_transfer_call) в одном батче
+      const result = await signTransaction([storageDepositTx, ftTransferCallTx]);
       toast({
-        title: "No route selected",
-        description: "Please select a route to swap",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSwapping(true);
-    try {
-      for (const instruction of selectedRoute.execution_instructions) {
-        if (instruction.NearTransaction) {
-          const txParams = {
-            receiverId: instruction.NearTransaction.receiver_id,
-            actions: instruction.NearTransaction.actions.map((action: any) => {
-              if (action.FunctionCall) {
-                return {
-                  type: 'FunctionCall' as const,
-                  params: {
-                    methodName: action.FunctionCall.method_name,
-                    args: JSON.parse(atob(action.FunctionCall.args)),
-                    gas: action.FunctionCall.gas,
-                    deposit: action.FunctionCall.deposit,
-                  }
-                };
-              }
-              throw new Error(`Unsupported action type: ${Object.keys(action)[0]}`);
-            })
-          };
-
-          console.log('Sending transaction with params:', txParams);
-          const result = await signTransaction(txParams);
-          console.log('Transaction result:', result);
-        }
-      }
-
-      toast({
-        title: "Swap executed successfully",
-        description: `Swapped ${amountIn} ${fromToken.symbol} for ${amountOut} ${toToken.symbol}`,
+        title: "Swap submitted",
+        description: `Sent ${amountIn} ${fromToken.symbol} to deposit address via ft_transfer_call.`,
       });
       setAmountIn("");
       setAmountOut("");
       setSelectedRouteId(null);
-    } catch (error: any) {
-      console.error('Swap failed:', error);
+    } catch (e: any) {
       toast({
-        title: "Swap failed",
-        description: error.message || error.toString() || "An unexpected error occurred",
+        title: "Failed to swap",
+        description: e.message || e.toString(),
         variant: "destructive",
       });
     } finally {
