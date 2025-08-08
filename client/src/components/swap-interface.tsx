@@ -251,10 +251,23 @@ export function SwapInterface() {
                 recipient: 'intents.near'
               });
             } else if (typeof messageToSignData === 'object' && messageToSignData.message) {
+              let nonce: Uint8Array | undefined = undefined;
+              if (messageToSignData.nonce) {
+                let candidate: any = messageToSignData.nonce;
+                if (candidate instanceof Uint8Array && candidate.length === 32) {
+                  nonce = candidate;
+                } else if (Array.isArray(candidate) && candidate.length === 32) {
+                  nonce = new Uint8Array(candidate);
+                } else if (typeof candidate === 'object' && Object.values(candidate).length === 32) {
+                  nonce = new Uint8Array(Object.values(candidate));
+                }
+                // Если после преобразования длина не 32 — не передавать nonce
+                if (nonce && nonce.length !== 32) nonce = undefined;
+              }
               signedMessage = await signMessage({ 
                 message: messageToSignData.message,
                 recipient: messageToSignData.recipient || 'intents.near',
-                nonce: messageToSignData.nonce ? new Uint8Array(Object.values(messageToSignData.nonce)) : undefined
+                ...(nonce ? { nonce } : {})
               });
             } else {
                const messageString = typeof messageToSignData === 'object' ? JSON.stringify(messageToSignData) : String(messageToSignData);
