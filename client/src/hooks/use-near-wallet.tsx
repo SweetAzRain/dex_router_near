@@ -159,7 +159,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
       }
       setIsConnecting(true);
       addActivityLog('Opening wallet selector...', 'info');
-      await selector.show();
+      await selector.modal.show();
     } catch (error) {
       console.error('Connection error:', error);
       addActivityLog(`Connection error: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
