@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, ArrowUpDown, Settings, History, ChevronDown, TrendingUp, AlertTriangle } from "lucide-react";
+import { AlertCircle, ArrowUpDown, ChevronDown, TrendingUp, AlertTriangle, Sun, Moon } from "lucide-react";
+import { useState as useReactState } from "react";
 import { TokenSelectModal } from "./token-select-modal";
 import { useWallet } from "@/hooks/use-wallet";
 import { useRoutes } from "@/hooks/use-routes";
@@ -68,6 +69,14 @@ const DEFAULT_TOKENS: TokenInfo[] = [
 ];
 
 export function SwapInterface() {
+  // Theme state: 'light' | 'dark'
+  const [theme, setTheme] = useReactState<'light' | 'dark'>(
+    window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  );
+  // Apply theme to document root
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
   const { wallet, signTransaction, signMessage } = useWallet();
   const { toast } = useToast();
   
@@ -213,6 +222,22 @@ export function SwapInterface() {
       setSelectedRouteId(null);
     }
   }, [routesData, selectedRouteId, toToken.decimals]);
+
+  // Обработчик кнопок процентов/MAX
+  const handleSetAmountPercent = (percent: number) => {
+    const balanceRaw = balances[fromToken.id] ? parseFloat(balances[fromToken.id]) : 0;
+    let value = balanceRaw * percent;
+    // Для NEAR (wrap.near) уменьшаем MAX на 0.05 NEAR (или 0.05 для safety)
+    if (percent === 1 && (fromToken.id === 'wrap.near' || fromToken.isNative)) {
+      const nearDecimals = 24;
+      const minLeft = 0.05; // 0.05 NEAR оставить на комиссии
+      if (balanceRaw > minLeft) {
+        value = balanceRaw - minLeft;
+      }
+    }
+    // Округляем до 6 знаков для UI
+    setAmountIn(value > 0 ? value.toFixed(6) : '');
+  };
 
   const handleSwapTokens = () => {
     const tempToken = fromToken;
@@ -431,15 +456,15 @@ export function SwapInterface() {
     <Card className="w-full max-w-2xl" data-testid="card-swap-interface">
       <CardContent className="p-6">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Swap Tokens</h2>
-          <div className="flex items-center space-x-2">
-            <Button variant="ghost" size="sm" data-testid="button-settings">
-              <Settings className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="sm" data-testid="button-history">
-              <History className="h-4 w-4" />
-            </Button>
-          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Swap Tokens</h2>
+          <button
+            aria-label="Toggle theme"
+            className="rounded-full p-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            style={{ outline: 'none' }}
+          >
+            {theme === 'dark' ? <Sun className="h-5 w-5 text-yellow-400" /> : <Moon className="h-5 w-5 text-gray-700" />}
+          </button>
         </div>
         <div className="space-y-1">
           {/* From Token */}
@@ -482,10 +507,10 @@ export function SwapInterface() {
             <div className="flex justify-between items-center mt-2">
               <span className="text-sm text-gray-500">≈ $0.00</span>
               <div className="flex space-x-2">
-                <Button variant="ghost" size="sm" className="text-xs h-6 px-2">25%</Button>
-                <Button variant="ghost" size="sm" className="text-xs h-6 px-2">50%</Button>
-                <Button variant="ghost" size="sm" className="text-xs h-6 px-2">75%</Button>
-                <Button variant="ghost" size="sm" className="text-xs h-6 px-2">MAX</Button>
+                <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => handleSetAmountPercent(0.25)}>25%</Button>
+                <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => handleSetAmountPercent(0.5)}>50%</Button>
+                <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => handleSetAmountPercent(0.75)}>75%</Button>
+                <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => handleSetAmountPercent(1)}>MAX</Button>
               </div>
             </div>
           </div>
@@ -666,17 +691,7 @@ export function SwapInterface() {
                   </div>
                 </CardContent>
               </Card>
-            ) : (
-              <Card>
-                <CardContent className="text-center py-8">
-                  <div className="flex flex-col items-center justify-center space-y-2">
-                    <AlertCircle className="h-12 w-12 text-gray-400" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No routes available</h3>
-                    <p className="text-gray-500">Try adjusting your swap amount or token pair</p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            ) : null}
           </div>
         )}
         {/* Swap Button */}
