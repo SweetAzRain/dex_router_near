@@ -331,10 +331,19 @@ export function SwapInterface() {
             const publishResult = await nearIntents.publishIntent(publication);
             console.log('Near Intents published:', publishResult);
 
-            toast({
-              title: "Intent submitted",
-              description: `Your swap intent has been sent to the solver. Intent hash: ${publishResult.intent_hash.substring(0, 8)}...`,
-            });
+            if (publishResult.intent_hash) {
+              toast({
+                title: "Intent submitted",
+                description: `Your swap intent has been sent to the solver. Intent hash: ${publishResult.intent_hash.substring(0, 8)}...`,
+              });
+            } else {
+              toast({
+                title: "Intent failed",
+                description: (publishResult as any).reason || "Intent was not accepted by solver relay",
+                variant: "destructive",
+              });
+              throw new Error((publishResult as any).reason || "Intent was not accepted by solver relay");
+            }
 
           } catch (error: any) {
             console.error('Near Intents swap failed:', error);
@@ -542,13 +551,13 @@ export function SwapInterface() {
           </div>
         </div>
         
-        {/* Route Comparison — только один лучший NearIntents */}
+        {/* Route Comparison — показываем все маршруты (NearIntents только один) */}
         {amountIn && (
           <div className="mt-6">
             {routesLoading ? (
               <Card>
                 <CardContent className="text-center py-4">
-                  <p>Finding best route...</p>
+                  <p>Finding best routes...</p>
                 </CardContent>
               </Card>
             ) : routesError ? (
@@ -558,36 +567,69 @@ export function SwapInterface() {
                   <span>Error loading routes: {routesError.message || 'Unknown error'}</span>
                 </CardContent>
               </Card>
-            ) : bestRoute ? (
-              <Card className="mb-4">
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center text-lg">
-                    <TrendingUp className="h-5 w-5 mr-2 text-green-500" />
-                    Best Route
+            ) : Array.isArray(routesData) && routesData.length > 0 ? (
+              <Card data-testid="card-route-comparison">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <TrendingUp className="h-5 w-5" />
+                    <span>Select Route</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center space-x-2">
-                      <Badge variant="default">
-                        {bestRoute.dex_id}
-                      </Badge>
-                      <span className="font-medium">
-                        {intearAPI.formatAmount(bestRoute.estimated_amount.amount_out, toToken.decimals)} {toToken.symbol}
-                      </span>
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      Slippage: {bestRoute.has_slippage ? 'Yes' : 'No'}
-                    </div>
+                  <div className="space-y-3">
+                    {(() => {
+                      const intents = routesData.filter((r: RouteInfo) => r.dex_id === 'NearIntents');
+                      const otherDexes = routesData.filter((r: RouteInfo) => r.dex_id !== 'NearIntents');
+                      const allRoutes = [...(intents.length ? [intents[0]] : []), ...otherDexes];
+                      const bestRoute = allRoutes.length > 0 ? intearAPI.getBestRoute(allRoutes) : null;
+                      return allRoutes.map((route: RouteInfo, index: number) => {
+                        const isSelected = route.dex_id === selectedRouteId;
+                        const isBest = bestRoute && route.dex_id === bestRoute.dex_id;
+                        return (
+                          <div
+                            key={`${route.dex_id}-${index}`}
+                            onClick={() => handleSelectRoute(route.dex_id)}
+                            className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                              isSelected
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-gray-200 hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center space-x-2">
+                                <Badge variant={isBest ? "default" : "secondary"}>
+                                  {route.dex_id}
+                                  {isBest && (
+                                    <span className="ml-1 text-xs">(Best)</span>
+                                  )}
+                                </Badge>
+                                <span className="font-medium">
+                                  {intearAPI.formatAmount(route.estimated_amount.amount_out, toToken.decimals)} {toToken.symbol}
+                                </span>
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                Slippage: {route.has_slippage ? 'Yes' : 'No'}
+                              </div>
+                            </div>
+                            {route.deadline && (
+                              <div className="text-xs text-gray-400 mt-1">
+                                Deadline: {new Date(route.deadline).toLocaleTimeString()}
+                              </div>
+                            )}
+                            {route.worst_case_amount && route.estimated_amount.amount_out !== route.worst_case_amount.amount_out && (
+                              <div className="text-xs text-orange-500 mt-1 flex items-center">
+                                <AlertTriangle className="h-3 w-3 mr-1" />
+                                Worst case: {intearAPI.formatAmount(route.worst_case_amount.amount_out, toToken.decimals)} {toToken.symbol}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
-                  {bestRoute.deadline && (
-                    <div className="text-xs text-gray-400 mt-1">
-                      Deadline: {new Date(bestRoute.deadline).toLocaleTimeString()}
-                    </div>
-                  )}
                 </CardContent>
               </Card>
-            ) : amountIn ? (
+            ) : (
               <Card>
                 <CardContent className="text-center py-8">
                   <div className="flex flex-col items-center justify-center space-y-2">
@@ -597,7 +639,7 @@ export function SwapInterface() {
                   </div>
                 </CardContent>
               </Card>
-            ) : null}
+            )}
           </div>
         )}
         {/* Swap Button */}
