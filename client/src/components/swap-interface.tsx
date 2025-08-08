@@ -245,12 +245,15 @@ export function SwapInterface() {
 
             // Подписываем сообщение
             let signedMessage: any;
-            if (typeof messageToSignData === 'string') {
-              signedMessage = await signMessage({ 
-                message: messageToSignData, 
-                recipient: 'intents.near'
-              });
-            } else if (typeof messageToSignData === 'object' && messageToSignData.message) {
+            // Логируем структуру messageToSignData
+            console.log('IntentsQuote message_to_sign:', messageToSignData);
+            // Проверяем, что это валидный intent для подписи
+            if (
+              typeof messageToSignData === 'object' &&
+              messageToSignData.signer_id &&
+              messageToSignData.deadline &&
+              messageToSignData.intents
+            ) {
               let nonce: Uint8Array | undefined = undefined;
               if (messageToSignData.nonce) {
                 let candidate: any = messageToSignData.nonce;
@@ -276,36 +279,36 @@ export function SwapInterface() {
                     nonce = undefined;
                   }
                 }
-                // Если после преобразования длина не 32 — не передавать nonce
                 if (nonce && nonce.length !== 32) nonce = undefined;
               }
-              // Если nonce невалиден — сгенерировать новый
               if (!nonce) {
                 nonce = new Uint8Array(32);
                 if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
                   window.crypto.getRandomValues(nonce);
                 } else {
-                  // fallback для Node.js окружения (например, тесты)
                   try {
                     const nodeCrypto = require('crypto');
                     const buf = nodeCrypto.randomBytes(32);
                     nonce.set(buf);
-                  } catch (e) {
-                    // Если crypto недоступен, nonce останется нулями (не рекомендуется)
-                  }
+                  } catch (e) {}
                 }
               }
-              signedMessage = await signMessage({ 
-                message: messageToSignData.message,
+              // Логируем nonce
+              console.log('nonce for signMessage', nonce, typeof nonce, nonce?.length, Buffer.from(nonce).toString('base64'));
+              signedMessage = await signMessage({
+                message: JSON.stringify(messageToSignData),
                 recipient: messageToSignData.recipient || 'intents.near',
                 nonce
               });
             } else {
-               const messageString = typeof messageToSignData === 'object' ? JSON.stringify(messageToSignData) : String(messageToSignData);
-               signedMessage = await signMessage({ 
-                message: messageString, 
-                recipient: 'intents.near'
-               });
+              // Не валидный intent для подписи
+              console.error('IntentsQuote не содержит валидный intent для подписи:', messageToSignData);
+              toast({
+                title: "IntentsQuote error",
+                description: "IntentsQuote не содержит валидный intent для подписи",
+                variant: "destructive",
+              });
+              throw new Error("IntentsQuote не содержит валидный intent для подписи");
             }
             
             console.log("Near Intents signed message result:", signedMessage);
