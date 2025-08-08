@@ -14,7 +14,6 @@ import { useTokenBalances } from "@/hooks/use-token-balances";
 import { TokenInfo } from "@/types/near";
 import { RouteInfo } from "@/types/near";
 import { intearAPI } from "@/services/intear-api";
-import { nearIntents } from "@/services/near-intents";
 import { OneClickService, OpenAPI, QuoteRequest } from "@defuse-protocol/one-click-sdk-typescript";
 // Use enums from QuoteRequest namespace for type safety
 // Инициализация 1click SDK (можно вынести в отдельный модуль)
