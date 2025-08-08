@@ -453,10 +453,10 @@ export function SwapInterface() {
   const bestRoute = intentsRoutes.length > 0 ? intearAPI.getBestRoute(intentsRoutes) : null;
 
   return (
-    <Card className="w-full max-w-2xl" data-testid="card-swap-interface">
-      <CardContent className="p-6">
+    <Card className="w-full max-w-2xl bg-white dark:bg-blue-900 border border-blue-100 dark:border-blue-800 shadow-lg" data-testid="card-swap-interface">
+      <CardContent className="p-6 text-gray-900 dark:text-blue-100">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Swap Tokens</h2>
+          <h2 className="text-2xl font-bold text-blue-700 dark:text-blue-200">Swap Tokens</h2>
           <button
             aria-label="Toggle theme"
             className="rounded-full p-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -468,10 +468,10 @@ export function SwapInterface() {
         </div>
         <div className="space-y-1">
           {/* From Token */}
-          <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+          <div className="bg-blue-50 dark:bg-blue-950 rounded-xl p-4 border border-blue-100 dark:border-blue-800">
             <div className="flex justify-between items-center mb-2">
-              <Label className="text-sm font-medium text-gray-700">From</Label>
-              <span className="text-sm text-gray-500" data-testid="text-from-balance">
+              <Label className="text-sm font-medium text-blue-900 dark:text-blue-100">From</Label>
+              <span className="text-sm text-blue-500 dark:text-blue-300" data-testid="text-from-balance">
                 Balance: {balancesLoading ? 'Loading...' : (balances[fromToken.id] ? parseFloat(balances[fromToken.id]).toFixed(6) : '0.000000')}
               </span>
             </div>
@@ -492,7 +492,7 @@ export function SwapInterface() {
                     <span className="text-xs font-bold">{fromToken.symbol.slice(0, 2)}</span>
                   )}
                 </div>
-                <span className="font-medium" data-testid="text-from-token-symbol">{fromToken.symbol}</span>
+                <span className="font-medium text-blue-900 dark:text-blue-100" data-testid="text-from-token-symbol">{fromToken.symbol}</span>
                 <ChevronDown className="h-4 w-4" />
               </Button>
               <Input
@@ -505,7 +505,7 @@ export function SwapInterface() {
               />
             </div>
             <div className="flex justify-between items-center mt-2">
-              <span className="text-sm text-gray-500">≈ $0.00</span>
+              <span className="text-sm text-blue-400 dark:text-blue-300">≈ $0.00</span>
               <div className="flex space-x-2">
                 <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => handleSetAmountPercent(0.25)}>25%</Button>
                 <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => handleSetAmountPercent(0.5)}>50%</Button>
@@ -527,10 +527,10 @@ export function SwapInterface() {
             </Button>
           </div>
           {/* To Token */}
-          <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+          <div className="bg-blue-50 dark:bg-blue-950 rounded-xl p-4 border border-blue-100 dark:border-blue-800">
             <div className="flex justify-between items-center mb-2">
-              <Label className="text-sm font-medium text-gray-700">To</Label>
-              <span className="text-sm text-gray-500" data-testid="text-to-balance">
+              <Label className="text-sm font-medium text-blue-900 dark:text-blue-100">To</Label>
+              <span className="text-sm text-blue-500 dark:text-blue-300" data-testid="text-to-balance">
                  Balance: {balancesLoading ? 'Loading...' : (balances[toToken.id] ? parseFloat(balances[toToken.id]).toFixed(6) : '0.000000')}
               </span>
             </div>
@@ -551,7 +551,7 @@ export function SwapInterface() {
                     <span className="text-xs font-bold">{toToken.symbol.slice(0, 2)}</span>
                   )}
                 </div>
-                <span className="font-medium" data-testid="text-to-token-symbol">{toToken.symbol}</span>
+                <span className="font-medium text-blue-900 dark:text-blue-100" data-testid="text-to-token-symbol">{toToken.symbol}</span>
                 <ChevronDown className="h-4 w-4" />
               </Button>
               <Input
@@ -564,14 +564,14 @@ export function SwapInterface() {
               />
             </div>
             <div className="flex justify-between items-center mt-2">
-              <span className="text-sm text-gray-500">≈ $0.00</span>
+              <span className="text-sm text-blue-400 dark:text-blue-300">≈ $0.00</span>
             </div>
           </div>
         </div>
         {/* Slippage Settings */}
-        <div className="mt-6 bg-blue-50 rounded-xl p-4">
+        <div className="mt-6 bg-blue-100 dark:bg-blue-950 rounded-xl p-4 border border-blue-100 dark:border-blue-800">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-medium text-gray-900">Slippage Settings</h3>
+          <h3 className="font-medium text-blue-900 dark:text-blue-100">Slippage Settings</h3>
             <RadioGroup
               value={slippageType}
               onValueChange={(value: "Auto" | "Fixed") => setSlippageType(value)}
@@ -617,22 +617,22 @@ export function SwapInterface() {
         {amountIn && (
           <div className="mt-6">
             {routesLoading ? (
-              <Card>
-                <CardContent className="text-center py-4">
+              <Card className="bg-blue-50 dark:bg-blue-950 border-blue-100 dark:border-blue-800">
+                <CardContent className="text-center py-4 text-blue-700 dark:text-blue-200">
                   <p>Finding best routes...</p>
                 </CardContent>
               </Card>
             ) : routesError ? (
-              <Card>
-                <CardContent className="text-center py-4 text-red-500">
+              <Card className="bg-blue-50 dark:bg-blue-950 border-blue-100 dark:border-blue-800">
+                <CardContent className="text-center py-4 text-red-400 dark:text-red-300">
                   <AlertCircle className="h-5 w-5 inline mr-2" />
                   <span>Error loading routes: {routesError.message || 'Unknown error'}</span>
                 </CardContent>
               </Card>
             ) : Array.isArray(routesData) && routesData.length > 0 ? (
-              <Card data-testid="card-route-comparison">
+              <Card data-testid="card-route-comparison" className="bg-blue-50 dark:bg-blue-950 border-blue-100 dark:border-blue-800">
                 <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
+                  <CardTitle className="flex items-center space-x-2 text-blue-900 dark:text-blue-100">
                     <TrendingUp className="h-5 w-5" />
                     <span>Select Route</span>
                   </CardTitle>
@@ -653,33 +653,33 @@ export function SwapInterface() {
                             onClick={() => handleSelectRoute(route.dex_id)}
                             className={`p-3 rounded-lg border cursor-pointer transition-colors ${
                               isSelected
-                                ? 'border-blue-500 bg-blue-50'
-                                : 'border-gray-200 hover:bg-gray-50'
+                                ? 'border-blue-500 bg-blue-100 dark:bg-blue-900'
+                                : 'border-blue-100 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-950'
                             }`}
                           >
                             <div className="flex justify-between items-center">
                               <div className="flex items-center space-x-2">
-                                <Badge variant={isBest ? "default" : "secondary"}>
+                                <Badge variant={isBest ? "default" : "secondary"} className="bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-blue-100">
                                   {route.dex_id}
                                   {isBest && (
                                     <span className="ml-1 text-xs">(Best)</span>
                                   )}
                                 </Badge>
-                                <span className="font-medium">
+                                <span className="font-medium text-blue-900 dark:text-blue-100">
                                   {intearAPI.formatAmount(route.estimated_amount.amount_out, toToken.decimals)} {toToken.symbol}
                                 </span>
                               </div>
-                              <div className="text-sm text-gray-500">
+                              <div className="text-sm text-blue-500 dark:text-blue-300">
                                 Slippage: {route.has_slippage ? 'Yes' : 'No'}
                               </div>
                             </div>
                             {route.deadline && (
-                              <div className="text-xs text-gray-400 mt-1">
+                              <div className="text-xs text-blue-300 dark:text-blue-400 mt-1">
                                 Deadline: {new Date(route.deadline).toLocaleTimeString()}
                               </div>
                             )}
                             {route.worst_case_amount && route.estimated_amount.amount_out !== route.worst_case_amount.amount_out && (
-                              <div className="text-xs text-orange-500 mt-1 flex items-center">
+                              <div className="text-xs text-orange-400 dark:text-orange-300 mt-1 flex items-center">
                                 <AlertTriangle className="h-3 w-3 mr-1" />
                                 Worst case: {intearAPI.formatAmount(route.worst_case_amount.amount_out, toToken.decimals)} {toToken.symbol}
                               </div>
@@ -698,7 +698,7 @@ export function SwapInterface() {
         <Button
           onClick={executeSwap}
           disabled={isSwapDisabled}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 mt-6 text-lg font-semibold"
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-800 dark:hover:bg-blue-700 dark:text-blue-100 py-4 mt-6 text-lg font-semibold"
           data-testid="button-execute-swap"
         >
           {getSwapButtonText()}

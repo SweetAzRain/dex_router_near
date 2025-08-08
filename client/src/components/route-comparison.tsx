@@ -45,8 +45,7 @@ export function RouteComparison({
           <CardContent className="p-6">
             <div className="text-center py-8">
               <TrendingUp className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No routes available</h3>
-              <p className="text-gray-500">Enter swap details to see available routes</p>
+              {/* Удалено: бесполезный блок 'No routes available' */}
             </div>
           </CardContent>
         </Card>

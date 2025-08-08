@@ -1,7 +1,5 @@
 // swap.tsx
 import { SwapInterface } from "../components/swap-interface";
-import { RouteComparison } from "../components/route-comparison";
-import { TransactionHistory } from "../components/transaction-history";
 import { WalletConnection } from "../components/wallet-connection";
 import { useRoutes } from "../hooks/use-routes";
 import { useWallet } from "../hooks/use-wallet";
@@ -9,11 +7,10 @@ import { useState } from "react";
 
 export default function SwapPage() {
   const { wallet } = useWallet();
-
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-blue-50 dark:bg-blue-950 text-gray-900 dark:text-blue-100">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
+      <header className="bg-white dark:bg-blue-900 shadow-sm border-b border-gray-200 dark:border-blue-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
@@ -21,46 +18,29 @@ export default function SwapPage() {
                 <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-blue-800 rounded-lg flex items-center justify-center">
                   <span className="text-white text-sm font-bold">DEX</span>
                 </div>
-                <h1 className="text-xl font-bold text-gray-900">NEAR DEX Aggregator</h1>
+                <h1 className="text-xl font-bold text-blue-700 dark:text-blue-200">Miquel SWAP</h1>
               </div>
               <div className="hidden md:flex items-center space-x-6 ml-8">
-                <a href="#" className="text-gray-700 hover:text-blue-600 font-medium">Swap</a>
-                <a href="#" className="text-gray-500 hover:text-blue-600 font-medium">Analytics</a>
-                <a href="#" className="text-gray-500 hover:text-blue-600 font-medium">About</a>
+                <a href="#" className="text-blue-500 hover:text-blue-700 font-semibold bg-blue-100 dark:bg-blue-900 rounded-lg px-4 py-2 transition-colors" style={{pointerEvents:'none',opacity:0.7}}>easy-mint (coming soon)</a>
               </div>
             </div>
-            
             <WalletConnection />
           </div>
         </div>
       </header>
-
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
           {/* Swap Interface */}
           <div className="lg:col-span-2">
             <SwapInterface />
           </div>
-          
-          {/* Route Comparison */}
-          <div className="space-y-6">
-            <RouteComparison 
-              routes={undefined}
-              isLoading={false}
-              fromTokenSymbol="NEAR"
-              toTokenSymbol="USDT"
-              toTokenDecimals={6}
-            />
-          </div>
+          {/* Route Comparison удалён */}
         </div>
-
-        {/* Transaction History */}
-        <div className="mt-8">
-          <TransactionHistory />
-        </div>
+        {/* Transaction History удалён */}
       </div>
     </div>
   );
 }
+// Улучшение поддержки тёмной темы и мягко-синей палитры для всей страницы
+// (добавить классы dark:bg-blue-950, dark:text-blue-100, bg-blue-50 и т.д. по месту)

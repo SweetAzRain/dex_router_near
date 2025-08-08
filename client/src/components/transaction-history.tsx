@@ -59,7 +59,7 @@ export function TransactionHistory() {
       <Card data-testid="card-transaction-history">
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Recent Transactions</span>
+            {/* Удалено: Recent Transactions */}
           </CardTitle>
         </CardHeader>
         <CardContent>
