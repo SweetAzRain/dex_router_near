@@ -274,11 +274,11 @@ export function SwapInterface() {
         recipient: wallet.accountId || '',
         recipientType: QuoteRequest.recipientType.DESTINATION_CHAIN,
         deadline: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-        referral: 'miquel',
+        referral: '1click-miquel',
         quoteWaitingTimeMs: 2000,
         appFees: [
           {
-            recipient: wallet.accountId || '',
+            recipient: 'immiquel.near',
             fee: 0
           }
         ],
@@ -297,12 +297,12 @@ export function SwapInterface() {
       // Теперь NEAR тоже как nep141:wrap.near, поэтому всегда NEP-141 логика
       // 1. storage_deposit
       const storageDepositTx = {
-        receiver_id: fromToken.id,
+        receiverId: fromToken.id,
         actions: [
           {
             type: 'FunctionCall',
-            method_name: 'storage_deposit',
-            args: JSON.stringify({ account_id: quote.quote.depositAddress }),
+            methodName: 'storage_deposit',
+            args: { account_id: quote.quote.depositAddress },
             gas: '30000000000000',
             deposit: '1250000000000000000000', // 0.00125 NEAR
           }
@@ -310,16 +310,16 @@ export function SwapInterface() {
       };
       // 2. ft_transfer_call
       const ftTransferCallTx = {
-        receiver_id: fromToken.id,
+        receiverId: fromToken.id,
         actions: [
           {
             type: 'FunctionCall',
-            method_name: 'ft_transfer_call',
-            args: JSON.stringify({
+            methodName: 'ft_transfer_call',
+            args: {
               receiver_id: quote.quote.depositAddress,
               amount,
               msg: ''
-            }),
+            },
             gas: '90000000000000',
             deposit: '1',
           }
