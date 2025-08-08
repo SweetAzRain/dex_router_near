@@ -1,0 +1,12 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+			"label": "install wallet-selector modal-ui",
+			"command": "npm install @near-wallet-selector/modal-ui@^9.2.0 --legacy-peer-deps",
+			"group": "build",
+			"isBackground": false
+		}
+	]
+}

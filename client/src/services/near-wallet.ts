@@ -13,15 +13,23 @@ interface NearWalletState {
 }
 
 
+
+import type { WalletSelectorModal } from '@near-wallet-selector/modal-ui';
+
 class NearWalletService {
   private selector: WalletSelector | null = null;
+  private modal: WalletSelectorModal | null = null;
   private wallet: Wallet | null = null;
   private currentAccountId: string | null = null;
 
 
   async initialize(network: 'mainnet' | 'testnet' = 'mainnet') {
     try {
-      this.selector = await initWalletSelector(network);
+      const result = await initWalletSelector(network);
+      const selector = result.selector;
+      const modal = result.modal;
+      this.selector = selector;
+      this.modal = modal;
       this.selector.on('signedIn', async ({ accounts }) => {
         this.wallet = await this.selector!.wallet();
         this.currentAccountId = accounts?.[0]?.accountId || null;
@@ -48,14 +56,14 @@ class NearWalletService {
 
 
   async connect(network: 'mainnet' | 'testnet' = 'mainnet'): Promise<void> {
-    if (!this.selector) {
+    if (!this.selector || !this.modal) {
       const initialized = await this.initialize(network);
-      if (!initialized) throw new Error('Failed to initialize wallet selector');
+      if (!initialized || !this.modal) throw new Error('Failed to initialize wallet selector or modal');
     }
     try {
       // Показываем модальное окно выбора кошелька
-      if ((this.selector as any).modal) {
-        await (this.selector as any).modal.show();
+      if (this.modal) {
+        await this.modal.show();
       } else {
         throw new Error('WalletSelector modal is not available');
       }

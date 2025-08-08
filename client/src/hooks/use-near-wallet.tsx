@@ -30,6 +30,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
   const [network, setNetwork] = useState<"mainnet" | "testnet">("mainnet");
   const [activityLog, setActivityLog] = useState<ActivityLogEntry[]>([]);
   const [selector, setSelector] = useState<any | null>(null); // WalletSelector instance
+  const [modal, setModal] = useState<any | null>(null); // WalletSelectorModal instance
   // const [modal, setModal] = useState<any | null>(null); // Убираем
   const { toast } = useToast();
   // Функция для добавления записей в лог активности
@@ -81,8 +82,9 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
           return;
         }
         // Инициализация wallet-selector
-        const selectorInstance = await initWalletSelector(network);
+        const { selector: selectorInstance, modal: modalInstance } = await initWalletSelector(network);
         setSelector(selectorInstance);
+        setModal(modalInstance);
         // Восстанавливаем сессию, если возможно
         try {
           const wallet = await selectorInstance.wallet();
@@ -159,7 +161,16 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
       }
       setIsConnecting(true);
       addActivityLog('Opening wallet selector...', 'info');
-      await selector.modal.show();
+      if (!modal) {
+        toast({
+          title: "Error",
+          description: "Wallet selector modal not initialized",
+          variant: "destructive",
+        });
+        setIsConnecting(false);
+        return;
+      }
+      await modal.show();
     } catch (error) {
       console.error('Connection error:', error);
       addActivityLog(`Connection error: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
@@ -181,7 +192,10 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      await selector.signOut();
+      const wallet = await selector.wallet();
+      if (wallet && typeof wallet.signOut === 'function') {
+        await wallet.signOut();
+      }
       // Событие signedOut обновит состояние
     } catch (error) {
       console.error("Disconnection error:", error);
@@ -296,11 +310,10 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
     network,
     activityLog,
     selector,
-    // modal, // Убираем
     connectWallet,
     disconnectWallet,
     signAndSendTransaction,
-    signMessage, // <-- ДОБАВИЛИ В КОНТЕКСТ
+    signMessage,
     addActivityLog,
     setNetwork,
   };
