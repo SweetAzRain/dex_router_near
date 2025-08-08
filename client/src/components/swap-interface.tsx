@@ -318,18 +318,17 @@ export function SwapInterface() {
           ]
         };
         await signTransaction(storageDepositTx);
-        // Затем ft_transfer_call отдельной транзакцией
-        const ftTransferCallTx = {
+        // Затем ft_transfer отдельной транзакцией (для интентов)
+        const ftTransferTx = {
           receiverId: fromToken.id,
           actions: [
             {
               type: 'FunctionCall',
               params: {
-                methodName: 'ft_transfer_call',
+                methodName: 'ft_transfer',
                 args: {
                   receiver_id: quote.quote.depositAddress,
-                  amount,
-                  msg: ''
+                  amount
                 },
                 gas: '90000000000000',
                 deposit: '1',
@@ -337,10 +336,10 @@ export function SwapInterface() {
             }
           ]
         };
-        await signTransaction(ftTransferCallTx);
+        await signTransaction(ftTransferTx);
         toast({
           title: "Swap submitted",
-          description: `Sent ${amountIn} ${fromToken.symbol} to deposit address via ft_transfer_call.`,
+          description: `Sent ${amountIn} ${fromToken.symbol} to deposit address via ft_transfer.`,
         });
         setAmountIn("");
         setAmountOut("");
