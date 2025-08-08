@@ -264,10 +264,26 @@ export function SwapInterface() {
                 // Если после преобразования длина не 32 — не передавать nonce
                 if (nonce && nonce.length !== 32) nonce = undefined;
               }
+              // Если nonce невалиден — сгенерировать новый
+              if (!nonce) {
+                nonce = new Uint8Array(32);
+                if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+                  window.crypto.getRandomValues(nonce);
+                } else {
+                  // fallback для Node.js окружения (например, тесты)
+                  try {
+                    const nodeCrypto = require('crypto');
+                    const buf = nodeCrypto.randomBytes(32);
+                    nonce.set(buf);
+                  } catch (e) {
+                    // Если crypto недоступен, nonce останется нулями (не рекомендуется)
+                  }
+                }
+              }
               signedMessage = await signMessage({ 
                 message: messageToSignData.message,
                 recipient: messageToSignData.recipient || 'intents.near',
-                ...(nonce ? { nonce } : {})
+                nonce
               });
             } else {
                const messageString = typeof messageToSignData === 'object' ? JSON.stringify(messageToSignData) : String(messageToSignData);
